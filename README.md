@@ -9,3 +9,7 @@ Sample metadata file format
 | sample_2| fam_1  | proj_1 | 1          | path/to/P2_file | path/to/MD_file|
 | sample_3| fam_1  | proj_1 | 1          | path/to/P2_file | path/to/MD_file|
 
+
+get SLMSuite from here
+
+[Link](https://bmcbioinformatics.biomedcentral.com/articles/10.1186/s12859-017-1734-5)
