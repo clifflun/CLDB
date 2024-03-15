@@ -14,6 +14,8 @@ get SLMSuite to local from
 
 [here](https://bmcbioinformatics.biomedcentral.com/articles/10.1186/s12859-017-1734-5)
 
+Note: slmseg.py has been modified to make things work
+
 
 docker image can be found
 
