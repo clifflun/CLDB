@@ -10,6 +10,11 @@ Sample metadata file format
 | sample_3| fam_1  | proj_1 | 1          | path/to/P2_file | path/to/MD_file|
 
 
-get SLMSuite from here
+get SLMSuite to local from 
 
-[Link](https://bmcbioinformatics.biomedcentral.com/articles/10.1186/s12859-017-1734-5)
+[here](https://bmcbioinformatics.biomedcentral.com/articles/10.1186/s12859-017-1734-5)
+
+
+docker image can be found
+
+[here](https://hub.docker.com/r/clifflun/sv_db)
