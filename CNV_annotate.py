@@ -6,7 +6,7 @@ import polars as pl
 import time
 import math
 
-REF_PATH='Z:/Members/clun/P2_DB'
+REF_PATH='Z:/Members/clun/CLDB'
 
 
 
@@ -84,9 +84,7 @@ def annotate_gnomad(chrom, start, end, SV_type, gnomad, thresh=500):
 		(pl.col('svtype') == SV_type)&
 		(pl.col('chrom1') == chrom)&
 		(abs(pl.col('pos1')-start) < thresh*2)&
-		(abs(pl.col('pos2')-end) < thresh*2)&
-		(pl.col('pos1') >= start)&
-		(pl.col('pos2') <= end)
+		(abs(pl.col('pos2')-end) < thresh*2)
 		).to_pandas()
 
 	_id = gnomad_splice['svid'].tolist()
@@ -108,9 +106,7 @@ def annotate_decipher(chrom, start, end, SV_type, decipher, thresh=500):
 		(pl.col('svtype') == SV_type)&
 		(pl.col('chrom1') == chrom)&
 		(abs(pl.col('pos1')-start) < thresh*2)&
-		(abs(pl.col('pos2')-end) < thresh*2)&
-		(pl.col('pos1') >= start)&
-		(pl.col('pos2') <= end)
+		(abs(pl.col('pos2')-end) < thresh*2)
 		).to_pandas()
 
 	_id = gnomad_splice['svid'].tolist()
@@ -209,6 +205,8 @@ def annotate(df):
 	IDR_disrupt_left = []
 	IDR_disrupt_right = []
 	last = ''
+
+	print('Annotation Step1')
 	for row in df.itertuples():
 		# cur = row.pt_id
 		# if cur != last: 
@@ -222,7 +220,8 @@ def annotate(df):
 		elif row.type == 'loss':
 			SV_type = 'DEL'
 
-		# print(chrom, start, end, SV_type)
+		if row.Index %1000 ==0:
+			print(row.Index, chrom, start, end, SV_type)
 
 		a = annotate_SD(chrom, start, end, SV_type, SD)
 		SD_list.append(a)
@@ -274,7 +273,20 @@ def annotate(df):
 	return df_annotated
 
 
+def annotate_CNV_syndromes(chrom, start, end, CNV_syndromes, thresh=500):
+	if start == end:
+		return []
 
+	CNV_splice = CNV_syndromes[
+	    (CNV_syndromes['chrom'] == chrom) &
+	    (abs(CNV_syndromes['start'] - start) < thresh * 2) &
+	    (abs(CNV_syndromes['end'] - end) < thresh * 2) 
+	]
+
+	
+	name = CNV_splice['syndrome'].tolist()
+
+	return name
 
 def annotate_step2(df):
 	#annotation wrapper
@@ -283,13 +295,22 @@ def annotate_step2(df):
 	pHaplo_syms = pHaplo.name
 	pTriplo = pd.read_csv(f'{REF_PATH}/reference/cnv/pTriplo_filtered_Collins_2022.tsv', sep='\t', index_col=False)
 	pTriplo_syms = pTriplo.name
+	CNV_syndromes = pd.read_csv(f'{REF_PATH}/reference/cnv/DECIPHER_CNV_syndrome_hg19.bed', sep='\t', index_col=False)
 
 	pHaplo_Collins=[]
 	pTriplo_Collins=[]
+	CNV_syndromes_list=[]
+
 	last = ''
+
+	print('Annotation Step2')
 	for row in df.itertuples():
-		
+		chrom=row.chr
+		start=row.start
+		end=row.end
 		syms = row.RefSeq_Symbol
+		if row.Index %1000 ==0:
+			print(row.Index, chrom, start, end)
 		if not isinstance(syms, float):
 			tmp=syms.split(';')
 			pHI_out=list(set(tmp).intersection(pHaplo_syms))
@@ -301,16 +322,18 @@ def annotate_step2(df):
 		pHaplo_Collins.append(';'.join(pHI_out))
 		pTriplo_Collins.append(';'.join(pTS_out))
 			
+		CNV_syndrome = annotate_CNV_syndromes(chrom, start, end, CNV_syndromes)	
+		CNV_syndromes_list.append(';'.join(CNV_syndrome))
 
 
 	annotation={
 		
 		'pHaplo_Collins': pHaplo_Collins, 
 		'pTriplo_Collins': pTriplo_Collins, 
+		'DECIPHER_CNV_Syndromes': CNV_syndromes_list
 	}
 
 	df_annotated = df.assign(**annotation)
-	# df_annotated = df_annotated.drop(columns=['chrom1'])
 	return df_annotated
 
 
@@ -352,14 +375,13 @@ def collapse(df):
 def main(input_file, output_file):
 	df = pd.read_csv(input_file, sep='\t')
 	df['chrom1']=df['chr'].apply(remove_chr)
-	out=annotate(df)
-	df=collapse(out)
+	df=annotate(df)
+	df=collapse(df)
+	df=annotate_step2(df)
 	df.to_csv(output_file, sep='\t', index=False)
 
 
 if __name__ == '__main__':
 	pd.set_option('display.expand_frame_repr', False)
-	# main('cnv_calls_031324.tsv', 'cnv_annotated.tsv')
-	df=pd.read_csv('cnv_annotated_collapsed.tsv', sep='\t', index_col=False)
-	df=annotate_step2(df)
-	df.to_csv('test.tsv', sep='\t', index_col=False)
+	main('cnv_calls_031324.tsv', 'cnv_annotated.tsv')
+

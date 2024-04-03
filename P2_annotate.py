@@ -81,9 +81,7 @@ def annotate_gnomad(chrom, start, end, SV_type, gnomad, thresh=500):
 		(pl.col('svtype') == SV_type)&
 		(pl.col('chrom1') == chrom)&
 		(abs(pl.col('pos1')-start) < thresh*2)&
-		(abs(pl.col('pos2')-end) < thresh*2)&
-		(pl.col('pos1') >= start)&
-		(pl.col('pos2') <= end)
+		(abs(pl.col('pos2')-end) < thresh*2)
 		).to_pandas()
 
 	_id = gnomad_splice['svid'].tolist()

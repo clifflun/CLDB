@@ -14,10 +14,10 @@ pd.set_option('display.expand_frame_repr', False)
 
 db_name = 'P2_DB_070224'
 
-def write_to_DB():
+def write_to_DB(fn):
 
 	engine = create_engine('sqlite:///P2_DB_070224.sqlite')
-	with pd.read_csv('cnv_DB_031424.tsv', sep='\t', chunksize=50000, index_col=False) as reader:
+	with pd.read_csv(fn, sep='\t', chunksize=50000, index_col=False) as reader:
 		for chunk in reader:
 			chunk.to_sql('CNV_hg19', con=engine, if_exists='append', index=False)
 		
@@ -94,7 +94,7 @@ def query_multigene(gene_list):
 
 def main():
 	delete()
-	write_to_DB()
+	write_to_DB('cnv_DB_032024.tsv')
 	create_index()
 	df = query()
 	print(df.columns)
