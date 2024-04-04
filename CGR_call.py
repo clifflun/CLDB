@@ -14,7 +14,7 @@ def modify_chr(value):
 
         
 def query(pt_id):
-    conn = sq.connect(f'P2_DB_070224.sqlite')
+    conn = sq.connect(f'P2_DB_040324.sqlite')
     cnv = pd.read_sql(f'select chr, start, end, len, type, cnv_lvl, pt_id, family, is_proband, project, cluster, SD_Overlap, OMIM_Count, RefSeq_Count from CNV_hg19 where 1=1 AND pt_id = "{pt_id}"', conn)
     p2 = pd.read_sql(f'select chrom1 AS chr, pos1 AS start, pos2 AS end, SV_id, SV_type from P2_DB where 1=1 AND pt_id = "{pt_id}" AND SV_type != "BND"', conn)
     p2['chr']=p2['chr'].astype(str)

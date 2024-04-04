@@ -4,7 +4,7 @@ import streamlit as st
 import plotly.express as px
 
 st.set_page_config(layout="wide")
-st.title('Carvalho Lab Variant Database (v1.2.0)')
+st.title('Carvalho Lab Variant Database (v1.2.1)')
 
 chrom = [i for i in range(1,23)]
 chrom.append('X')
@@ -1110,3 +1110,6 @@ with CC_tab:
 			df=query_cgr()
 			nrow=df.shape[0]
 			nrow_ph.write(f'{nrow} results')
+
+with gregor_tab:
+	st.write('Coming Soon')

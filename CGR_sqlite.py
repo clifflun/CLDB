@@ -59,7 +59,7 @@ def update():
 def main():
 
 	fns = glob.glob('./CGR_calls/*')
-	# delete()
+	delete()
 	for fn in fns:
 		write_to_DB(fn)
 	create_index()

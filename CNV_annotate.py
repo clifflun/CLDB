@@ -349,6 +349,10 @@ def collapse(df):
 	grouped = df.groupby(['type', 'IDR_Disrupt_left', 'IDR_Disrupt_right'])['cluster'].agg(['unique'])
 	grouped = grouped[grouped['unique'].apply(len) > 1]
 	for row in grouped.itertuples():
+		#avoid grouping calls without IDR disrupt
+		if row[0][1] == '' and row[0][1] == '':
+			continue
+		print(row)
 		idx_ = df[(df['type'] == row[0][0]) & (df['IDR_Disrupt_left'] == row[0][1]) & (df['IDR_Disrupt_right'] == row[0][2])].index
 		new_id = df.loc[idx_]['cluster'].max()
 		df.loc[idx_, 'cluster'] = new_id
