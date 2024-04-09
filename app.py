@@ -4,7 +4,7 @@ import streamlit as st
 import plotly.express as px
 
 st.set_page_config(layout="wide")
-st.title('Carvalho Lab Variant Database (v1.2.1)')
+st.title('Carvalho Lab Variant Database (v1.2.2)')
 
 chrom = [i for i in range(1,23)]
 chrom.append('X')
@@ -296,7 +296,7 @@ with CC_tab:
 			'disrupt_repeat_right': disrupt_repeat_right}
 
 		def build_qry(qry_dict):
-			qry = 'SELECT * FROM P2_DB WHERE 1=1'
+			qry = 'SELECT p.*, m.sex, m.phenotype FROM P2_DB p JOIN CC_meta m ON p.pt_id = m.pt_id WHERE 1=1'
 
 			if qry_dict['chrom1'] is not None:
 				chrom1 = qry_dict['chrom1']
@@ -742,7 +742,7 @@ with CC_tab:
 			'pTriplo': pTriplo_cnv}
 
 		def build_qry_cnv(qry_dict_cnv):
-			qry = 'SELECT * FROM CNV_hg19 WHERE 1=1'
+			qry = 'SELECT c.*, m.sex, m.phenotype FROM CNV_hg19 c JOIN CC_meta m ON c.pt_id = m.pt_id WHERE 1=1'
 
 			if qry_dict_cnv['chrom1'] is not None:
 				chrom1 = qry_dict_cnv['chrom1']
@@ -1019,7 +1019,7 @@ with CC_tab:
 			}
 
 		def build_qry_cgr(qry_dict_cgr):
-			qry = 'SELECT * FROM CGR_hg19 WHERE 1=1'
+			qry = 'SELECT c.*, m.sex, m.phenotype FROM CGR_hg19 c JOIN CC_meta m ON c.pt_id = m.pt_id WHERE 1=1'
 
 			if qry_dict_cgr['chrom1'] is not None:
 				chrom1 = qry_dict_cgr['chrom1']

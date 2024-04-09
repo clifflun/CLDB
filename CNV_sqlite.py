@@ -34,7 +34,7 @@ def create_index():
 
 def query():
 	conn = sq.connect(f'P2_DB_040324.sqlite')
-	df = pd.read_sql('select * from CNV_hg19 where 1=1 AND is_proband = 1 LIMIT 100 OFFSET 0', conn)
+	df = pd.read_sql('SELECT c.*, m.sex, m.phenotype FROM CNV_hg19 c JOIN CC_meta m ON c.pt_id = m.pt_id WHERE 1=1 LIMIT 100 OFFSET 0', conn)
 	conn.close()
 	return df
 
@@ -57,9 +57,9 @@ def update():
 
 
 def main():
-	delete()
-	write_to_DB('cnv_DB_040424.tsv')
-	create_index()
+	# delete()
+	# write_to_DB('cnv_DB_040424.tsv')
+	# create_index()
 	df = query()
 	print(df.columns)
 	print(df)
