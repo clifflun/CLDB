@@ -3,8 +3,12 @@ import numpy as np
 import streamlit as st
 import plotly.express as px
 
-st.set_page_config(layout="wide")
-st.title('Carvalho Lab Variant Database (v1.2.2)')
+st.set_page_config(
+    page_title="Query",
+    page_icon="🔎",
+    layout="wide"
+)
+
 
 chrom = [i for i in range(1,23)]
 chrom.append('X')
@@ -23,7 +27,7 @@ OMIM_syms = OMIM.gene_symbol.unique()
 rs = pd.read_csv(f'./reference/RefSeq_hg19.tsv', sep='\t', index_col=False)
 rs_syms = rs.gene_id.unique()
 
-CC_tab, gregor_tab = st.tabs(['Cavalho Lab', 'GREGoR'])
+CC_tab, gregor_tab = st.tabs(['Carvalho Lab', 'GREGoR'])
 
 with CC_tab:
 	CC_tab1, CC_tab2, CC_tab3 = st.tabs(['P2_SV', 'CNV', 'CGR'])
@@ -388,7 +392,7 @@ with CC_tab:
 
 			if len(qry_dict['pt_id']) != 0:
 				pt_id = '", "'.join(qry_dict['pt_id'])
-				qry += f' AND pt_id IN ("{pt_id}")'
+				qry += f' AND m.pt_id IN ("{pt_id}")'
 
 			if qry_dict['genotype'] == 'Homozygous':
 				qry += ' AND genotype LIKE "1/1"'
@@ -838,7 +842,7 @@ with CC_tab:
 
 			if len(qry_dict_cnv['pt_id']) != 0:
 				pt_id = '", "'.join(qry_dict_cnv['pt_id'])
-				qry += f' AND pt_id IN ("{pt_id}")'
+				qry += f' AND m.pt_id IN ("{pt_id}")'
 
 
 			if qry_dict_cnv['cluster_id'] is not None:
@@ -1073,7 +1077,7 @@ with CC_tab:
 
 			if len(qry_dict_cgr['pt_id']) != 0:
 				pt_id = '", "'.join(qry_dict_cgr['pt_id'])
-				qry += f' AND pt_id IN ("{pt_id}")'
+				qry += f' AND m.pt_id IN ("{pt_id}")'
 
 			if qry_dict_cgr['cluster_id'] is not None:
 				cluster_id = qry_dict_cgr['cluster_id']
