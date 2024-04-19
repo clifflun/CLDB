@@ -1,5 +1,6 @@
 import streamlit as st
-
+import pandas as pd
+import os
 st.set_page_config(
     page_title="Help",
     page_icon="❓",
@@ -7,16 +8,20 @@ st.set_page_config(
 
 st.title("Q&A")
 
-with st.expander("How many datasets are there?"):
-    st.markdown("""
-        This Variant Database operates under two separate datasets:
-        [Carvalho Lab](https://pnri.org/carvalho-lab/) and [GREGoR Consortium](https://gregorconsortium.org/). 
-        Each dataset curates and manages distinct cohort, catering to different research interests 
-        and clinical applications. 
-        """)
-with st.expander("Which reference genome are the data aligned to?"):
-    st.markdown("""
-        Note that all data from Carvalho Lab are mapped to hg19, where data from GREGoR are mapped to hg38.
-        """)
+df = pd.read_csv('qa.txt', sep='\t', header=None)
 
- 
+def qa_generator(i,q,a, **kwargs):
+    with st.expander(q):
+        st.markdown(a)
+        match i:
+            case 3:
+                st.image('./misc/P2_DB.png', caption="P2_SV pipeline")
+            case 5:
+                st.image('./misc/CGR.png', caption="A. Example of matching CNV and SV (filtered out). B. Example of non-matching CNV and SV (not filtered out)")
+
+
+for row in df.itertuples():
+    i=row.Index
+    q=row[1]
+    a=row[2]
+    qa_generator(i, q, a)
