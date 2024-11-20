@@ -1,0 +1,5 @@
+streamlit==1.32.2
+pandas
+numpy
+plotly
+SQLAlchemy==2.0.22
