@@ -6,6 +6,8 @@ This codebase includes modules for querying, helper utilities, web pages, and mi
 
 # Usage
 
+## Launch Instance
+
 1. Clone the Repository
 
 ```bash
@@ -40,3 +42,18 @@ Open a web browser and navigate to:
 http://localhost:8501
 ```
 
+
+## Create datafile and load to SQL database
+
+1. Create clustered calls file using helper files (each caller has its corresponding file)
+
+```python
+
+python3 /CLDB/helper/*_cluster.py
+```
+
+2. Load to SQL database (please change names accordingly)
+
+```python
+python3 /CLDB/helper/to_sqlite.py
+```
