@@ -1,0 +1,4 @@
+pt_id	family	project	is_proband	is_trio	CNV_outlier	sex	system	phenotype	Candidate_Variant	Inheritance	P2_path	MD_path	BAM_path	GATK_path
+pt1	fam1	project1	0	0	0	MALE	NS6000	Unaffected	0	0	/path/to/p2/vcf/file	/path/to/mosdepth/bed/file	/path/to/bam/file	/path/to/GATK/vcf/file	
+pt2	fam1	project1	0	0	0	MALE	NS6000	Unaffected	0	0	/path/to/p2/vcf/file	/path/to/mosdepth/bed/file	/path/to/bam/file	/path/to/GATK/vcf/file	
+pt3	fam1	project1	0	0	0	MALE	NS6000	Unaffected	0	0	/path/to/p2/vcf/file	/path/to/mosdepth/bed/file	/path/to/bam/file	/path/to/GATK/vcf/file	
