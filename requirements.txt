@@ -1,0 +1,11 @@
+streamlit==1.32.2
+pandas
+numpy
+plotly
+SQLAlchemy==2.0.22
+pysam
+polars
+scikit-learn
+python-rle
+pillow==9.0.0
+bamsnap
