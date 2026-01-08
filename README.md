@@ -1,13 +1,8 @@
-Carvalho Lab DB code base
+#Description
 
+CLDB is a Python-based toolkit designed to support flexible management and querying of copy-number variant (CNV) / structural variant (SV) metadata for genomic analyses, particularly in the context of rare disease cohorts. It provides utilities for ingesting sample metadata, filtering and querying CNV/SV call sets, and integrating with visualization and analytic workflows.
 
-Sample metadata file format
-
-| pt_id    | family   | project | is_proband | P2_path                        | MD_path                                               |
-|----------|----------|---------|------------|------------------------------|-------------------------------------------------------|
-| sample_1| fam_1  | proj_1 | 1          | path/to/P2_file | path/to/MD_file|
-| sample_2| fam_1  | proj_1 | 1          | path/to/P2_file | path/to/MD_file|
-| sample_3| fam_1  | proj_1 | 1          | path/to/P2_file | path/to/MD_file|
+This codebase includes modules for querying, helper utilities, web pages, and miscellaneous scripts to build reproducible analysis pipelines.
 
 # Usage
 
