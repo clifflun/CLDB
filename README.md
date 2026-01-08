@@ -9,13 +9,38 @@ Sample metadata file format
 | sample_2| fam_1  | proj_1 | 1          | path/to/P2_file | path/to/MD_file|
 | sample_3| fam_1  | proj_1 | 1          | path/to/P2_file | path/to/MD_file|
 
+## Usage
 
-get SLMSuite to local from [here](https://bmcbioinformatics.biomedcentral.com/articles/10.1186/s12859-017-1734-5)
+### 1. Clone the Repository
 
-Note: slmseg.py has been modified to make things work
+```bash
+git clone https://github.com/clifflun/CLDB.git
+cd CLDB
+```
 
-Usage:
-Clone this repository git clone
-Download docker image from [here](https://hub.docker.com/r/clifflun/sv_db)
-Create a docker container and mount the volume to the path where the repository is cloned
-Run the docker image in the above container
+2. Download the Docker Image
+
+Download the prebuilt Docker image from the provided source (see Docker Image section below).
+
+```bash
+docker pull clifflun/sv_db
+```
+
+3. Run the Docker Container
+
+Start a Docker container and mount the local CLDB repository into the container. Expose port 8501 to access the web application:
+
+```
+docker run -it \
+  -p 8501:8501 \
+  -v /path/to/CLDB:/app/CLDB \
+ clifflun/sv_db 
+```
+
+4. Access the Application
+
+Once the container is running, the application will start automatically.
+Open a web browser and navigate to:
+```
+http://localhost:8501
+```
