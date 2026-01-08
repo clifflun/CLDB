@@ -3,15 +3,15 @@ Carvalho Lab DB code base
 
 Sample metadata file format
 
-| pt_id    | family   | project | is_proband | P2_path                                                  | MD_path                                               |
-|----------|----------|---------|------------|----------------------------------------------------------|-------------------------------------------------------|
+| pt_id    | family   | project | is_proband | P2_path                        | MD_path                                               |
+|----------|----------|---------|------------|------------------------------|-------------------------------------------------------|
 | sample_1| fam_1  | proj_1 | 1          | path/to/P2_file | path/to/MD_file|
 | sample_2| fam_1  | proj_1 | 1          | path/to/P2_file | path/to/MD_file|
 | sample_3| fam_1  | proj_1 | 1          | path/to/P2_file | path/to/MD_file|
 
-## Usage
+# Usage
 
-### 1. Clone the Repository
+1. Clone the Repository
 
 ```bash
 git clone https://github.com/clifflun/CLDB.git
@@ -33,7 +33,7 @@ Start a Docker container and mount the local CLDB repository into the container.
 ```
 docker run -it \
   -p 8501:8501 \
-  -v /path/to/CLDB:/app/CLDB \
+  -v /path/to/CLDB:/CLDB \
  clifflun/sv_db 
 ```
 
@@ -44,3 +44,4 @@ Open a web browser and navigate to:
 ```
 http://localhost:8501
 ```
+
