@@ -14,5 +14,8 @@ get SLMSuite to local from [here](https://bmcbioinformatics.biomedcentral.com/ar
 
 Note: slmseg.py has been modified to make things work
 
-
-docker image can be found [here](https://hub.docker.com/r/clifflun/sv_db)
+Usage:
+Clone this repository git clone
+Download docker image from [here](https://hub.docker.com/r/clifflun/sv_db)
+Create a docker container and mount the volume to the path where the repository is cloned
+Run the docker image in the above container
