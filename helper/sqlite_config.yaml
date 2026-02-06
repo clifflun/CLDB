@@ -1,0 +1,35 @@
+# Define reusable blocks at the top
+common_settings:
+  # This &genomic_indices is our "hook" name
+  genomic_indices: &genomic_indices
+    - 'chrom1'
+    - 'chrom2'
+    - 'SV_ID'
+    - 'SV_TYPE'
+    - 'PT_ID'
+    - 'FAM_ID'
+    - 'PROJECT'
+    - 'IS_PROBAND'
+    - 'CLUSTER_ID'
+    - 'COUNT'
+    - 'SD_overlap'
+    - 'OMIM_count'
+    - 'L_RefSeq'
+    - 'L_repeatmask'
+    - 'R_RefSeq'
+    - 'R_repeatmask'
+    - 'UNIQUE_PT_COUNT'
+    - 'imprinting_genes'
+  sample_meta: &sample_meta
+    - table_name: "meta_hg38"
+      input_file: "./meta/meta_sample.tsv"
+      columns: ["pt_id", "sex", "phenotype"]
+
+databases:
+   - db_name: "dev_sample_DB.sqlite"
+     table_jobs:
+       - table_name: "sampel_table"
+         input_glob: "/path/to/annotated/table.tsv"
+         chunksize: 100000
+         index_columns: *genomic_indices
+     meta_jobs: *sample_meta

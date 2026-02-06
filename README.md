@@ -87,11 +87,11 @@ Column Definitions
 
 ```python
 
-python3 /CLDB/helper/*_cluster.py
+python3 -m helper.*_cluster
 ```
 
 2. Load to SQL database (please change names accordingly)
 
 ```python
-python3 /CLDB/helper/to_sqlite.py
+python3 -m helper.to_sqlite
 ```
