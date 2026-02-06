@@ -1,80 +1,110 @@
 import pandas as pd
-import numpy as np
 import sqlite3 as sq
 from sqlalchemy import create_engine
+from dataclasses import dataclass
 
+@dataclass
+class UpdateJob:
+    table_name: str
+    input_file: str
+    db_name: str
 
-def add_freq(df):
+def calculate_frequencies(df: pd.DataFrame) -> pd.DataFrame:
+    """Vectorized calculation of proband/non-proband stats."""
+    print("Calculating frequencies...")
+    
+    # 1. Calculate Totals
+    total_proband_pt = df.loc[df['IS_PROBAND'] == True, 'PT_ID'].nunique()
+    total_nonproband_pt = df.loc[df['IS_PROBAND'] == False, 'PT_ID'].nunique()
 
+    # 2. Vectorized Proband Counts per Cluster
+    # Filter out noise (CLUSTER_ID -1) and non-probands
+    mask = (df['IS_PROBAND'] == 1) & (df['CLUSTER_ID'] != -1)
+    proband_counts = df[mask].groupby('CLUSTER_ID')['PT_ID'].nunique()
 
-    # Calculate total number of probands and non-probands
-    total_proband_pt = df[df['is_proband'] == True]['pt_id'].nunique()
-    total_nonproband_pt = df[df['is_proband'] == False]['pt_id'].nunique()
+    # 3. Map counts back to DF (Handling Cluster -1 separately)
+    df['proband_only_count'] = df['CLUSTER_ID'].map(proband_counts)
+    
+    # Fill noise/singular cases: If -1, use IS_PROBAND as 1/0
+    noise_mask = df['CLUSTER_ID'] == -1
+    df.loc[noise_mask, 'proband_only_count'] = df['IS_PROBAND'].astype(int)
+    # Fill any clusters that had 0 probands
+    df['proband_only_count'] = df['proband_only_count'].fillna(0).astype(int)
 
-    # Cluster-wise unique pt_id count for probands only
-    print('Getting proband-only cluster stats')
-     # Step 1: Compute proband counts per cluster (excluding noise)
-    proband_counts = (
-        df[(df['is_proband'] == 1) & (df['cluster'] != -1)]
-        .groupby('cluster')['pt_id']
-        .nunique()
-        .to_dict()
-    )
-    # Step 2: Assign row-level proband count correctly
-    def get_proband_count(row):
-        if row['cluster'] == -1:
-            return 1 if row['is_proband'] else 0
-        return proband_counts.get(row['cluster'], 0)
-
-    df['proband_only_count'] = df.apply(get_proband_count, axis=1)
+    # 4. Final Props
     df['proband_only_propensity'] = df['proband_only_count'] / total_proband_pt
-
-    df['nonproband_only_count'] = df['unique_pt_id_count'] - df['proband_only_count']
+    df['nonproband_only_count'] = df['UNIQUE_PT_COUNT'] - df['proband_only_count']
     df['nonproband_only_propensity'] = df['nonproband_only_count'] / total_nonproband_pt
 
-    df['UUID'] = df['chrom1'].astype(str)+'_'+df['pos1'].astype(str)+'_'+df['chrom2'].astype(str)+'_'+df['pos2'].astype(str)+'_'+df['SV_id'].astype(str)+'_'+df['pt_id'].astype(str)
+    # 5. UUID Creation
+    cols = ['chrom1', 'pos1', 'chrom2', 'pos2', 'SV_ID', 'PT_ID']
+    df['UUID'] = df[cols].astype(str).agg('_'.join, axis=1)
+    
     return df
 
-def main(fn, table, db):
-    df = pd.read_csv(f'./data/3.0.0/{fn}', sep='\t', index_col=False)
-    print(df)
-    df = add_freq(df)
+def run_update_job(job: UpdateJob):
+    print(f"--- Updating {job.table_name} from {job.input_file} ---")
     
-    engine = create_engine(f'sqlite:///{db}.sqlite')  
+    # Load and Process
+    df = pd.read_csv(job.input_file, sep='\t', low_memory=False)
+    df = calculate_frequencies(df)
+    
+    update_cols = ['UUID', 'proband_only_count', 'proband_only_propensity', 
+                   'nonproband_only_count', 'nonproband_only_propensity']
+    update_df = df[update_cols]
 
-    # Assuming you have 'row_id' in df and in the database
-    update_cols = ['UUID', 'proband_only_count', 'proband_only_propensity', 'nonproband_only_count', 'nonproband_only_propensity']
-    update_df = df[update_cols].copy()
-
-    # Load existing table into a temporary table in the DB
-    update_df.to_sql('tmp_update', engine, if_exists='replace', index=False)
-
-    # Now run SQL to update original table using tmp_update
-    conn = sq.connect(f'{db}.sqlite')
-    cursor = conn.cursor()  
-    cursor.execute(f"ALTER TABLE {table} ADD proband_only_count INT")
-    cursor.execute(f"ALTER TABLE {table} ADD nonproband_only_count INT")
-    cursor.execute(f"ALTER TABLE {table} ADD proband_only_propensity FLOAT")
-    cursor.execute(f"ALTER TABLE {table} ADD nonproband_only_propensity FLOAT")
-    cursor.execute(f"""
-        UPDATE {table}
-        SET
-            proband_only_count = tmp.proband_only_count,
-            nonproband_only_count = tmp.nonproband_only_count,
-            proband_only_propensity = tmp.proband_only_propensity,
-            nonproband_only_propensity = tmp.nonproband_only_propensity
+    # Database Operations
+    db_path = job.db_name if job.db_name.endswith('.sqlite') else f"{job.db_name}.sqlite"
+    engine = create_engine(f'sqlite:///{db_path}')
+    
+    with sq.connect(db_path) as conn:
+        cursor = conn.cursor()
         
-        FROM tmp_update AS tmp
-        WHERE {table}.UUID = tmp.UUID
-    """)
-    cursor.execute("""
-        DROP TABLE tmp_update;
-        """)
+        # 1. Add columns (Ignore error if they already exist)
+        new_cols = {
+            "proband_only_count": "INT",
+            "nonproband_only_count": "INT",
+            "proband_only_propensity": "FLOAT",
+            "nonproband_only_propensity": "FLOAT"
+        }
+        
+        for col, dtype in new_cols.items():
+            try:
+                cursor.execute(f"ALTER TABLE {job.table_name} ADD COLUMN {col} {dtype}")
+            except sq.OperationalError:
+                pass # Column already exists
+        
+        # 2. Use Temporary Table for high-speed update
+        update_df.to_sql('tmp_update', engine, if_exists='replace', index=False)
+        
+        # 3. Perform the Update
+        # Note: Added an INDEX on tmp_update(UUID) to make the update instantaneous
+        cursor.execute("CREATE INDEX idx_tmp_uuid ON tmp_update(UUID)")
+        
+        sql_update = f"""
+            UPDATE {job.table_name}
+            SET
+                proband_only_count = (SELECT proband_only_count FROM tmp_update WHERE tmp_update.UUID = {job.table_name}.UUID),
+                nonproband_only_count = (SELECT nonproband_only_count FROM tmp_update WHERE tmp_update.UUID = {job.table_name}.UUID),
+                proband_only_propensity = (SELECT proband_only_propensity FROM tmp_update WHERE tmp_update.UUID = {job.table_name}.UUID),
+                nonproband_only_propensity = (SELECT nonproband_only_propensity FROM tmp_update WHERE tmp_update.UUID = {job.table_name}.UUID)
+            WHERE EXISTS (
+                SELECT 1 FROM tmp_update WHERE tmp_update.UUID = {job.table_name}.UUID
+            )
+        """
+        cursor.execute(sql_update)
+        cursor.execute("DROP TABLE tmp_update")
+        conn.commit()
+    
+    print(f"Update complete for {job.table_name}.")
 
-    conn.commit()
-    conn.close()
-   
-
-
+# Example usage with multiple jobs
 if __name__ == '__main__':
-    main('CLDB_P2_hg38_072425.tsv', 'P2_hg38', 'prod_CLDB_SR')
+    jobs = [
+        UpdateJob('sample_table', '/path/to/annotated/file.tsv', 'dev_sample_DB'),
+        
+        # Add more jobs here
+    ]
+    
+    for job in jobs:
+        run_update_job(job)
