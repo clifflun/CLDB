@@ -75,7 +75,7 @@ Column Definitions
 
 -    BAM_path: Path to the subject's BAM/CRAM file.
 
--    GATK_path: Path to the JointCall VCF output.
+-    GATK_path: Path to the GATK JointCall VCF output.
 
 | pt_id | family | project | is_proband | is_trio | CNV_outlier | sex | system | phenotype | Candidate_Variant | Inheritance | P2_path | MD_path | BAM_path | GATK_path |
 | :--- | :--- | :--- | :---: | :---: | :---: | :--- | :--- | :--- | :---: | :---: | :--- | :--- | :--- | :--- |
@@ -89,10 +89,15 @@ Column Definitions
 
 python3 -m helper.*_cluster
 ```
+Each script will produce an output file. 
 
-2. Load to SQL database 
+2. Annotate the clustered calls
 
-Please edit config file /helper/sqlite_config.yaml and run the following command
+Annotate calls using [BEDanno](https://github.com/Carvalho-Lab/BEDanno)
+
+3. Load to SQL database 
+
+Please edit config file /helper/sqlite_config.yaml to point the program to the annotated outputs from above and run the following command
 
 ```python
 python3 -m helper.to_sqlite
