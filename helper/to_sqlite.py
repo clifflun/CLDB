@@ -148,7 +148,7 @@ def run_config(config: Config, drop_tables_first: bool = True):
 
 def main():
     # Now you just point to your external config file
-    config_file = 'Z:/Members/clun/CLDB/helper/sqlite_config.yaml'
+    config_file = './helper/sqlite_config.yaml'
     
     try:
         configs = load_config_from_yaml(config_file)
