@@ -1,3 +1,4 @@
+tqdm
 streamlit==1.32.2
 pandas
 numpy
@@ -8,4 +9,3 @@ polars
 scikit-learn
 python-rle
 pillow==9.0.0
-bamsnap
