@@ -90,7 +90,9 @@ Column Definitions
 python3 -m helper.*_cluster
 ```
 
-2. Load to SQL database (please change names accordingly)
+2. Load to SQL database 
+
+Please edit config file /helper/sqlite_config.yaml and run the following command
 
 ```python
 python3 -m helper.to_sqlite
