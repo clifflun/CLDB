@@ -1,9 +1,19 @@
 import pandas as pd
 import numpy as np
+import os
+import glob
 from util.slmseg import * 
-from itertools import groupby
 import rle
+from joblib import Parallel, delayed
+from tqdm import tqdm
 from sklearn.cluster import DBSCAN
+
+# Constants for Stage 2
+REF_VER = 'hg19'
+INPUT_META = 'Z:/Members/clun/CLDB/meta/meta_SR_hg19.tsv'
+OUTPUT_DIR = 'Z:/Members/clun/CLDB/data/4.0.0/CLDB_CNV_hg19_intermediate/'
+FINAL_FILE = 'Z:/Members/clun/CLDB/CLDB_CNV_hg19_021026.tsv'
+
 
 
 def remove_chr(value):
@@ -105,180 +115,184 @@ def get_all_cnv(df):
 	out["SV_id"] = out["type"] + "_" + out["SV_id"]
 	out['cnv_lvl'] = mutate_log_lvl(out['log2r'])
 	return out
+# --- Utility Functions (Kept original logic, improved efficiency) ---
 
-def postproc(df, **kwargs):
-	df['pt_id'] = kwargs['pt_id']
-	df['family'] = kwargs['family']
-	df['is_proband'] = kwargs['is_proband']
-	df['project'] = kwargs['project']
-	df['system'] = kwargs['system']
+def mutate_log_lvl(log2r):
+    conditions = [
+        (log2r <= -1.525),
+        ((log2r >= np.log2(0.9/2)) & (log2r <= np.log2(1.1/2))),
+        ((log2r >= np.log2(1.8/2)) & (log2r <= np.log2(2.2/2))),
+        ((log2r >= np.log2(2.7/2)) & (log2r <= np.log2(3.3/2))),
+        ((log2r >= np.log2(3.6/2)) & (log2r <= np.log2(4.4/2))),
+        (log2r >= 1.175)
+    ]
+    choices = ["HOM_DEL", "HET_DEL", "NML", "DUP", "TRP", "MUL_GAIN"]
+    return np.select(conditions, choices, default="UND")
 
-def apply_DBSCAN(df, ref_ver):
-	#global value for DBSCAN
-	# #hg19
-	if ref_ver == 'hg19':
-		chrom_size = {
-			'1':249250621 ,
-			'2':243199373 ,
-			'3':198022430 ,
-			'4':191154276 ,
-			'5':180915260,
-			'6':171115067 ,
-			'7':159138663 ,
-			'8':146364022 ,
-			'9':141213431 ,
-			'10':135534747,
-			'11':135006516,
-			'12':133851895,
-			'13':115169878,
-			'14':107349540,
-			'15':102531392,
-			'16':90354753 ,
-			'17':81195210 ,
-			'18':78077248 ,
-			'20':63025520 ,
-			'19':59128983 ,
-			'22':51304566 ,
-			'21':48129895,
-			'X':155270560,
-			'Y':59373566 }
-	elif ref_ver == 'hg38':
-		#hg38
-		chrom_size={
-			'1'	:248956422,
-			'2'	:242193529,
-			'3'	:198295559,
-			'4'	:190214555,
-			'5'	:181538259,
-			'6'	:170805979,
-			'7'	:159345973,
-			'X'	:156040895,
-			'8'	:145138636,
-			'9'	:138394717,
-			'11'	:135086622,
-			'10'	:133797422,
-			'12'	:133275309,
-			'13'	:114364328,
-			'14'	:107043718,
-			'15'	:101991189,
-			'16'	:90338345,
-			'17'	:83257441,
-			'18'	:80373285,
-			'20'	:64444167,
-			'19'	:58617616,
-			'Y'	:57227415,
-			'22'	:50818468,
-			'21'	:46709983
-		}
+# --- Parallel Worker Task ---
 
-	size_df = pd.DataFrame(list(chrom_size.items()), columns=['Chromosome', 'Size'])
-	size_df['cum_size'] = size_df['Size'].cumsum().shift(fill_value=0)
+def process_single_patient(m, output_dir):
+    """Worker function: processes one patient and saves to disk."""
+    try:
+        # Check if already processed
+        out_path = os.path.join(output_dir, f"{m.pt_id}.tsv")
+        if os.path.exists(out_path):
+            return True
 
+        # Load and Prep
+        df = pd.read_csv(m.MD_path, compression='gzip', sep='\t', dtype={0: str})
+        
+        # Core logic from your original script
+        out = get_all_cnv(df) # Logic from your get_all_cnv
+        
+        # Post-processing
+        out['pt_id'] = m.pt_id
+        out['family'] = m.family
+        out['project'] = m.project
+        out['is_proband'] = m.is_proband
+        out['system'] = m.system
+        
+        # Rename and Column Selection
+        out['chr'] = out['chr'].apply(lambda x: x.split('chr')[1] if x.startswith("chr") else x)
+        out['chrom1'] = out['chr']
+        out['chrom2'] = out['chr']
+        out = out.rename(columns={"start": "pos1", "end": "pos2", "cnv_lvl": "SV_type"})
+        
+        final_cols = ['chrom1', 'pos1', 'chrom2', 'pos2', 'SV_id', 'SV_type', 
+                      'len', 'log2r', 'pt_id', 'family', 'project', 'is_proband', 'system']
+        out = out[final_cols]
+        
+        
+        out.to_csv(out_path, sep='\t', index=False)
+        return True
+    except Exception as e:
+        print(f"Error on {m.pt_id}: {e}")
+        return False
 
-	#get cum position for DBSCAN
-	df=df.merge(size_df, left_on='chrom1', right_on='Chromosome')
-	print(df)
-	
-	df=df.drop(['Chromosome', 'Size'], axis = 1)
-	df.rename(columns={df.columns[-1]: 'cum_size1'}, inplace=True)
-	df=df.merge(size_df, left_on='chrom1', right_on='Chromosome')
-	df.rename(columns={df.columns[-1]: 'cum_size2'}, inplace=True)
+# --- Global Clustering Function ---
 
-	df['cum_pos1'] = df['pos1']+df['cum_size1']
-	df['cum_pos2'] = df['pos2']+df['cum_size2']
+def apply_DBSCAN_refactored(df, ref_ver):
+    """Optimized DBSCAN with vectorized cumulative position calculation."""
+    chrom_configs={
+		'hg19': {	'1':249250621 ,	'2':243199373 ,	'3':198022430 ,	'4':191154276 ,
+					'5':180915260,	'6':171115067 ,	'7':159138663 ,	'8':146364022 ,
+					'9':141213431 ,	'10':135534747,	'11':135006516,	'12':133851895,
+					'13':115169878,	'14':107349540,	'15':102531392,	'16':90354753 ,
+					'17':81195210 ,	'18':78077248 ,	'20':63025520 ,	'19':59128983 ,
+					'22':51304566 ,	'21':48129895,	'X':155270560,	'Y':59373566},
+		'hg38':{	'1'	:248956422,	'2'	:242193529,	'3'	:198295559,	'4'	:190214555,
+					'5'	:181538259,	'6'	:170805979,	'7'	:159345973,	'X'	:156040895,	
+					'8'	:145138636,	'9'	:138394717,	'11':135086622,	'10':133797422,	
+					'12':133275309,	'13':114364328,	'14':107043718,	'15':101991189,	
+					'16':90338345,	'17':83257441,	'18':80373285,	'20':64444167,	
+					'19':58617616,	'Y'	:57227415,	'22':50818468,	'21':46709983}
+	}
+    # Choose sizes
+    sizes = chrom_configs[ref_ver] 
+    
+    # Vectorized Cumulative Position
+    size_df = pd.DataFrame(list(sizes.items()), columns=['chrom1', 'Size'])
+    size_df['cum_offset'] = size_df['Size'].cumsum().shift(fill_value=0)
+    
+    df = df.merge(size_df[['chrom1', 'cum_offset']], on='chrom1', how='left')
+    df['cum_pos1'] = df['pos1'] + df['cum_offset']
+    df['cum_pos2'] = df['pos2'] + df['cum_offset']
 
-	#DBSCAN parameters
-	epsilon = 500
-	min_samples = 2
-	cluster_counter = 0
+    # DBSCAN
+    df['cluster'] = -1
+    cluster_counter = 0
+    
+    for sv_type, group in df.groupby('SV_type'):
+        if len(group) < 2: continue
+        
+        coords = group[['cum_pos1', 'cum_pos2']]
+        db = DBSCAN(eps=500, min_samples=2).fit(coords)
+        
+        # Global unique cluster IDs
+        labels = db.labels_
+        mask = labels != -1
+        labels[mask] = labels[mask] + cluster_counter + 1
+        df.loc[group.index, 'cluster'] = labels
+        
+        if any(mask):
+            cluster_counter = labels.max()
 
-	#DBSCAN by SV type
-	grouped_SV_type = df.groupby('SV_type')
+    # Calculate frequencies (Vectorized)
+    n_sub = df['pt_id'].nunique()
+    df['count'] = df.groupby('cluster')['cluster'].transform('count')
+    df.loc[df['cluster'] == -1, 'count'] = 1
 
-	for name, group in grouped_SV_type:
-		print(f'Clustering {name}')
-		features = ['cum_pos1', 'cum_pos2']
-		X = group[features]
-		dbscan = DBSCAN(eps=epsilon, min_samples=min_samples)
-		group['cluster_tmp'] = dbscan.fit_predict(X)
-		group['cluster'] = np.where(group['cluster_tmp'] != -1, group['cluster_tmp']+cluster_counter+1, -1)
-		cluster_counter = group['cluster'].max()
-		df.loc[group.index, 'cluster'] = group['cluster']
+    df['unique_pt_id_count'] = df.groupby('cluster')['pt_id'].transform('nunique')
+    df.loc[df['cluster'] == -1, 'unique_pt_id_count'] = 1
+    df['pseudo_db_freq'] = df['unique_pt_id_count'] / n_sub
 
-	df=df.drop(['Chromosome', 'Size', 'cum_size1', 'cum_size2', 'cum_pos2', 'cum_pos1'], axis = 1)
-	total_pt = len(df['pt_id'].unique())
+    # 1. Calculate Totals
+    total_proband_pt = df.loc[df['is_proband'] == True, 'pt_id'].nunique()
+    total_nonproband_pt = df.loc[df['is_proband'] == False, 'pt_id'].nunique()
 
-	#get count and propensity
-	print('Getting cluster count')
-	df['count'] = df.groupby(['cluster'])['cluster'].transform('count')
-	df.loc[df['cluster'] == -1, 'count'] = 1
-	df['cluster_propensity'] = df['count']/total_pt
-	
-	#get pseudo db freq
-	print('Getting pseudo db freq')
-	df['unique_pt_id_count'] = df.groupby('cluster')['pt_id'].transform('nunique')
-	df['unique_pt_id_count'] = np.where(df['cluster'] == -1, 1, df['unique_pt_id_count'])
-	nsub=df.pt_id.nunique()
-	df['psuedo_df_freq'] = df['unique_pt_id_count']/nsub
-	return df
+    # 2. Vectorized Proband Counts per Cluster
+    # Filter out noise (CLUSTER_ID -1) and non-probands
+    mask = (df['is_proband'] == 1) & (df['cluster'] != -1)
+    proband_counts = df[mask].groupby('cluster')['pt_id'].nunique()
+    df['proband_only_count'] = df['cluster'].map(proband_counts)
 
-def collapse(df):
-	print('Collapsing calls in repeats')
-	grouped = df.groupby(['type', 'IDR_Disrupt_left', 'IDR_Disrupt_right'])['cluster'].agg(['unique'])
-	grouped = grouped[grouped['unique'].apply(len) > 1]
-	for row in grouped.itertuples():
-		#avoid grouping calls without IDR disrupt
-		if row[0][1] == '' and row[0][1] == '':
-			continue
-		print(row)
-		idx_ = df[(df['type'] == row[0][0]) & (df['IDR_Disrupt_left'] == row[0][1]) & (df['IDR_Disrupt_right'] == row[0][2])].index
-		new_id = df.loc[idx_]['cluster'].max()
-		df.loc[idx_, 'cluster'] = new_id
+    # Fill noise/singular cases: If -1, use is_proband as 1/0
+    noise_mask = df['cluster'] == -1
+    df.loc[noise_mask, 'proband_only_count'] = df['is_proband'].astype(int)
+    df['proband_only_count'] = df['proband_only_count'].fillna(0).astype(int)
+    df['proband_only_propensity'] = df['proband_only_count'] / total_proband_pt
+    df['nonproband_only_count'] = df['unique_pt_id_count'] - df['proband_only_count']
+    df['nonproband_only_propensity'] = df['nonproband_only_count'] / total_nonproband_pt
+    df=df.drop(['cum_offset', 'cum_pos2', 'cum_pos1'], axis = 1)
 
+    rename_map = {
+        'SV_id': 'SV_ID',
+        'SV_type': 'SV_TYPE',
+        'SV_len': 'SV_LEN',
+        'pt_id': 'PT_ID',
+        'family': 'FAM_ID',
+        'project': 'PROJECT',
+        'is_proband': 'IS_PROBAND',
+        'system': 'SYSTEM',
+        'cluster': 'CLUSTER_ID',
+        'count': 'COUNT',
+        'cluster_propensity': 'CLUSTER_PROPENSITY',
+        'unique_pt_id_count': 'UNIQUE_PT_COUNT',
+        'psuedo_df_freq': 'PSEUDO_FREQ'
+    }
+    df = df.rename(columns=rename_map)
+    return df
 
-	##recalculate freq
-	#get count and propensity
-	print('Getting cluster count')
-	total_pt = len(df['pt_id'].unique())
-	df['count'] = df.groupby(['cluster'])['cluster'].transform('count')
-	df.loc[df['cluster'] == -1, 'count'] = 1
-	df['cluster_propensity'] = df['count']/total_pt
-	
-	#get pseudo db freq
-	print('Getting pseudo db freq')
-	df['unique_pt_id_count'] = df.groupby('cluster')['pt_id'].transform('nunique')
-	df['unique_pt_id_count'] = np.where(df['cluster'] == -1, 1, df['unique_pt_id_count'])
-	nsub=df.pt_id.nunique()
-	df['psuedo_df_freq'] = df['unique_pt_id_count']/nsub
-	return df
+# --- Main Execution ---
 
-def main(fn, fo, ref_ver):
-	tmp=[]
-	meta = pd.read_csv(fn, sep='\t', index_col=False)
-	meta = meta[meta["CNV_outlier"] == 0]
-	for m in meta.itertuples():
-		fname=m.MD_path 
-		pt_id=m.pt_id
-		family=m.family
-		project=m.project
-		is_proband=m.is_proband
-		system=m.system
-		print(f'{pt_id} from {project}')
-		df = pd.read_csv(fname, compression='gzip', sep='\t', dtype={0: str})
-		out = get_all_cnv(df)
-		postproc(out, pt_id=pt_id, family=family, project=project, is_proband=is_proband, system=system)
-		out['chr'] = out['chr'].apply(remove_chr)
-		out['chrom2'] = out['chr']
-		out = out.rename(columns={"start": "pos1", "end": "pos2", "chr": "chrom1", "cnv_lvl": "SV_type"})
-		out = out[['chrom1', 'pos1', 'chrom2', 'pos2', 'SV_id', 'SV_type', 'len', 'log2r', 'pt_id', 'family', 'project', 'is_proband', 'system']]
-		tmp.append(out)
-	df = pd.concat(tmp, ignore_index=True)
-	# df=pd.read_csv(f'{fo}.tsv', sep='\t', index_col=False, dtype ={'chrom1': str})
-	df = apply_DBSCAN(df, ref_ver)
-	df.to_csv(f'{fo}.tsv', sep='\t', index=False)
+def main(meta_file, output_dir, final_output, ref_ver):
+    if not os.path.exists(output_dir):
+        os.makedirs(output_dir)
 
-	
+    meta = pd.read_csv(meta_file, sep='\t')
+    meta = meta[meta["CNV_outlier"] == 0]
+    
+    # STAGE 1: Parallel Process Patients
+    print(f"Stage 1: Processing {len(meta)} patients in parallel...")
+    Parallel(n_jobs=-1)(
+        delayed(process_single_patient)(m, output_dir) 
+        for m in tqdm(list(meta.itertuples()), desc="Processing CNVs")
+    )
+
+    # STAGE 2: Bulk Load and Cluster
+    print("Stage 2: Bulk loading intermediate files...")
+    all_files = glob.glob(os.path.join(output_dir, "*.tsv"))
+    # Fast load: using list comprehension + concat
+    df_all = pd.concat([pd.read_csv(f, sep='\t', dtype={'chrom1': str}) for f in all_files], ignore_index=True)
+    
+    print("Applying DBSCAN Clustering...")
+    df_clustered = apply_DBSCAN_refactored(df_all, ref_ver)
+
+    print(f"Saving final result to {final_output}")
+    df_clustered.to_csv(final_output, sep='\t', index=False)
 
 if __name__ == '__main__':
-	pd.set_option('display.expand_frame_repr', False)
-	main('Z:/Members/clun/CLDB/meta/meta_SR_hg38.tsv', 'Z:/Members/clun/CLDB/CLDB_CNV_hg38_062625', 'hg38')
+    main(INPUT_META, 
+         OUTPUT_DIR, 
+         FINAL_FILE, 
+         REF_VER)

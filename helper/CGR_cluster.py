@@ -3,8 +3,14 @@ import numpy as np
 import sqlite3 as sq
 from sqlalchemy import create_engine
 import os
+from tqdm import tqdm
+from joblib import Parallel, delayed, parallel_backend
 
-pd.set_option('display.expand_frame_repr', False)
+REF_VER = 'hg19'
+INPUT_META=f'Z:/Members/clun/CLDB/meta/meta_SR_{REF_VER}.tsv'
+DB_PATH = 'prod_CLDB_SR.sqlite'
+OUTPUT_DIR = f'./data/4.0.0/CLDB_CGR_{REF_VER}'
+
 
 def modify_chr(value):
     if value.startswith("chr"):
@@ -14,8 +20,8 @@ def modify_chr(value):
 
 def query(pt_id, conn):
     # Use the passed connection instead of creating a new one every time
-    cnv = pd.read_sql(f'SELECT UUID, chrom1 AS chr, pos1 AS start, chrom2, pos2 AS end, SV_ID AS CNV_ID, SV_TYPE AS CNV_TYPE, SV_LEN AS CNV_LEN, PT_ID, FAM_ID, IS_PROBAND, PROJECT, CLUSTER_ID, COUNT, UNIQUE_PT_COUNT, PSEUDO_FREQ, SD_overlap, OMIM_count, RefSeq_count from CNV_hg38 where 1=1 AND pt_id = "{pt_id}"', conn)
-    p2 = pd.read_sql(f'SELECT chrom1 AS chr, pos1 AS start, pos2 AS end, SV_ID, SV_TYPE from P2_hg38 where 1=1 AND pt_id = "{pt_id}" AND SV_TYPE != "BND"', conn)
+    cnv = pd.read_sql(f'SELECT UUID, chrom1 AS chr, pos1 AS start, chrom2, pos2 AS end, SV_ID AS CNV_ID, SV_TYPE AS CNV_TYPE, SV_LEN AS CNV_LEN, PT_ID, FAM_ID, IS_PROBAND, PROJECT, CLUSTER_ID, COUNT, UNIQUE_PT_COUNT, PSEUDO_FREQ, SD_overlap, OMIM_count, RefSeq_count from CNV_{REF_VER} where 1=1 AND pt_id = "{pt_id}"', conn)
+    p2 = pd.read_sql(f'SELECT chrom1 AS chr, pos1 AS start, pos2 AS end, SV_ID, SV_TYPE from P2_{REF_VER} where 1=1 AND pt_id = "{pt_id}" AND SV_TYPE != "BND"', conn)
     p2['chr']=p2['chr'].astype(str)
     cnv['chr']=cnv['chr'].astype(str)
     return p2, cnv
@@ -95,47 +101,47 @@ def process_cnv(p2, cnv):
     merged_df.rename(columns={'chr':'chrom1', 'start':'pos1', 'end':'pos2', 'CNV_ID': 'SV_ID', 'CNV_TYPE': 'SV_TYPE', 'CNV_LEN': 'SV_LEN'}, inplace=True)
     return merged_df
 
+def worker_task(pt_id, db_path, output_dir):
+    output_file = f'{output_dir}/{pt_id}.tsv'
+    if os.path.exists(output_file):
+        return None
+
+    conn = sq.connect(db_path)
+    p2, cnv = query(pt_id, conn)
+                
+    if p2.empty or cnv.empty:
+        return None
+    out = process_cnv(p2, cnv)
+    if out.empty:
+        return None
+    conn.close()
+    out.to_csv(f'{output_dir}/{pt_id}.tsv', sep='\t', index=False)
+    return pt_id
 
 def main():
     # Load metadata
-    df = pd.read_csv('Z:/Members/clun/CLDB/meta/meta_SR_hg38.tsv', sep='\t')
+    print(f"INPUT METADATA: {INPUT_META}")
+    print(f"DATABASE: {DB_PATH}")
+    print(f"OUTPUT DIRECTORY: {OUTPUT_DIR}")
+
+    df = pd.read_csv(INPUT_META, sep='\t')
+    df = df[df["CNV_outlier"] == 0]
     df = df[['pt_id', 'P2_path']]
     df=df.dropna().reset_index()
-    pt_ids=df['pt_id']
+    pt_ids=sorted(df['pt_id'])
+    print(len(pt_ids))
     
-    output_dir = './data/3.0.0/CLDB_CGR_hg38_123125'
-    if not os.path.exists(output_dir):
-        os.makedirs(output_dir)
-        print(f"Created directory: {output_dir}")
-
-    # OPEN DB CONNECTION ONCE
-    db_path = 'prod_CLDB_SR.sqlite'
-    conn = sq.connect(db_path)
-    print(f"Connected to database: {db_path}")
-
-    try:
-        for pt_id in pt_ids:
+    for pt_id in pt_ids:
+        output_file = f'{OUTPUT_DIR}/{pt_id}.tsv'
+        if os.path.exists(output_file):
+            pass
+        else:
             print(pt_id)
-            try:
-                # Pass connection to query function
-                p2, cnv = query(pt_id, conn)
-                
-                if p2.empty or cnv.empty:
-                    # print(f"  Skipping {pt_id}: No P2 or CNV data found.")
-                    continue
-                    
-                out = process_cnv(p2, cnv)
-                
-                if out.empty:
-                    continue
-                    
-                out.to_csv(f'{output_dir}/{pt_id}.tsv', sep='\t', index=False)
-            except Exception as e:
-                print(f"Error processing {pt_id}: {e}")
-    finally:
-        # Always close connection at the end
-        conn.close()
-        print("Database connection closed.")
 
+    results = Parallel(n_jobs=-1)(
+    delayed(worker_task)(pt_id, DB_PATH, OUTPUT_DIR) 
+    for pt_id in tqdm(pt_ids, desc="Processing Patients")
+)
+                    
 if __name__ == '__main__':
     main()

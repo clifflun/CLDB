@@ -8,8 +8,8 @@ from sklearn.cluster import DBSCAN
 from tqdm import tqdm
 from joblib import Parallel, delayed
 
-OUTPUT_NAME='output.tsv'
-INPUT_PATH='/path/to/data/file.tsv'
+OUTPUT_NAME='CLDB_P2_hg38_020626.tsv'
+INPUT_PATH='Z:/Members/clun/CLDB/meta/meta_SR_hg38.tsv'
 REF_VER='hg38'
 pd.set_option('display.expand_frame_repr', False)
 
@@ -44,7 +44,7 @@ def process_single_file(m_dict):
 		curr_df['SYSTEM'] = m_dict.get('system')
 		return curr_df
 	except Exception as e:
-		print(f"Error processing {m.pt_id}: {e}")
+		print(f"Error processing {m_dict.get('pt_id')}: {e}")
 		return pd.DataFrame() # Return empty df on failure
 
 def get_P2_df(meta_file, ref_ver):
@@ -77,44 +77,13 @@ def get_P2_df(meta_file, ref_ver):
 
 	# n_jobs=-1 uses all available CPU cores
 	# backend='multiprocessing' is usually best for CPU-heavy parsing
-	results = Parallel(n_jobs=-2, backend='multiprocessing')(
+	results = Parallel(n_jobs=-1, backend='multiprocessing')(
 		delayed(process_single_file)(m_dict) 
 		for m_dict in tqdm(valid_meta, total=len(valid_meta), desc="Parallel Import P2 Data")
 	)
 
     # Combine all individual dataframes into one
 	df = pd.concat(results, ignore_index=True)
-
-
-	# for m in tqdm(valid_meta.itertuples(),
-	# total=total_subjects, desc="Importing P2 Files"):
-	# 	# Read file using pandas directly
-	# 	# Note: You may need to adjust 'names' based on your specific VCF/TSV layout
-	# 	curr_df = pd.read_csv(m.P2_path, sep='\t', comment='#', header=None,
-	# 							usecols=[0, 1, 2, 7, 9], 
-	# 							names=['chrom1', 'pos1', 'SV_ID', 'info', 'genotype_raw'])
-		
-	# 	curr_df['chrom1'] = curr_df['chrom1'].str.replace('chr', '') 
-	# 	# Vectorized parsing of the 'info' column
-	# 	# Example: SVTYPE=DEL;SVLEN=-100;END=12345
-	# 	info_split = curr_df['info'].str.split(';', expand=True)
-	# 	curr_df['SV_TYPE'] = info_split[3].str.replace('SVTYPE=', '')
-	# 	curr_df['SV_LEN'] = pd.to_numeric(info_split[2].str.replace('AVGLEN=', ''), errors='coerce')
-	# 	curr_df['chrom2'] = info_split[5].str.replace('CHR2=chr', '')
-	# 	curr_df['pos2'] = pd.to_numeric(info_split[6].str.split('=').str[-1])
-	# 	curr_df['genotype'] = curr_df['genotype_raw'].str.split(':').str[0]
-		
-	# 	# Add metadata
-	# 	curr_df['PT_ID'] = m.pt_id
-	# 	curr_df['FAMILY'] = m.family
-	# 	curr_df['PROJECT'] = m.project
-	# 	curr_df['IS_PROBAND'] = m.is_proband
-	# 	curr_df['SYSTEM'] = m.system
-		
-		
-	# 	all_chunks.append(curr_df)
-
-	# df = pd.concat(all_chunks, ignore_index=True)
 
 	# 3. Artifact Filtering (Vectorized)
 	artifact_range = (32916144, 32916629) if ref_ver == 'hg38' else (33141211, 33141696)
